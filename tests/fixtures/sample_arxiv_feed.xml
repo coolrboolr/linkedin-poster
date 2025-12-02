@@ -1,0 +1,15 @@
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title type="html">ArXiv Query: search_query=all:electron&amp;id_list=&amp;start=0&amp;max_results=1</title>
+  <id>http://arxiv.org/api/xHh0/w0+xHh0/w0</id>
+  <updated>2023-10-01T00:00:00Z</updated>
+  <entry>
+    <id>http://arxiv.org/abs/2310.00000</id>
+    <updated>2023-10-01T00:00:00Z</updated>
+    <published>2023-10-01T00:00:00Z</published>
+    <title>Sample Paper Title</title>
+    <summary>This is a sample summary of the paper.</summary>
+    <author>
+      <name>John Doe</name>
+    </author>
+  </entry>
+</feed>

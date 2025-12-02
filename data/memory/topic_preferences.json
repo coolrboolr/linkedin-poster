@@ -1,0 +1,12 @@
+{
+  "seeds": [
+    "AI",
+    "LLM",
+    "Machine Learning"
+  ],
+  "avoid": [],
+  "liked_topics": [
+    "ThetaEvolve: Test-time Learning on Open Problems"
+  ],
+  "feedback_log": []
+}

@@ -1,61 +1,50 @@
-# New LangGraph Project
+# LinkedIn Poster Agent
 
-[![CI](https://github.com/langchain-ai/new-langgraph-project/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/langchain-ai/new-langgraph-project/actions/workflows/unit-tests.yml)
-[![Integration Tests](https://github.com/langchain-ai/new-langgraph-project/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/langchain-ai/new-langgraph-project/actions/workflows/integration-tests.yml)
+A LangGraph-based agent that scans Google Trends, fetches relevant ArXiv papers, and drafts LinkedIn posts tailored to your preferences.
 
-This template demonstrates a simple application implemented using [LangGraph](https://github.com/langchain-ai/langgraph), designed for showing how to get started with [LangGraph Server](https://langchain-ai.github.io/langgraph/concepts/langgraph_server/#langgraph-server) and using [LangGraph Studio](https://langchain-ai.github.io/langgraph/concepts/langgraph_studio/), a visual debugging IDE.
+## Features
 
-<div align="center">
-  <img src="./static/studio_ui.png" alt="Graph view in LangGraph studio UI" width="75%" />
-</div>
+- **Trend Scanning**: Monitors Google Trends for ML/AI topics.
+- **ArXiv Integration**: Fetches latest papers matching trending keywords.
+- **Relevance Ranking**: Scores papers based on your interests and trends.
+- **Conversational Agent**: Asks clarifying questions to refine post angle.
+- **Memory**: Remembers your topic preferences, comprehension style, and post formatting.
+- **Human-in-the-Loop**: Review and approve posts before they are finalized.
 
-The core logic defined in `src/agent/graph.py`, showcases an single-step application that responds with a fixed string and the configuration provided.
+## Setup
 
-You can extend this graph to orchestrate more complex agentic workflows that can be visualized and debugged in LangGraph Studio.
+1.  **Install Dependencies**:
+    ```bash
+    pip install .
+    ```
 
-## Getting Started
+2.  **Environment Variables**:
+    Copy `.env.example` to `.env` and fill in your API keys.
+    ```bash
+    cp .env.example .env
+    ```
 
-1. Install dependencies, along with the [LangGraph CLI](https://langchain-ai.github.io/langgraph/concepts/langgraph_cli/), which will be used to run the server.
+3.  **Run the Agent**:
+    ```bash
+    python src/graph.py
+    ```
+
+## Testing
+
+Run tests with LangSmith tracing enabled:
 
 ```bash
-cd path/to/your/app
-pip install -e . "langgraph-cli[inmem]"
+dotenv run pytest
 ```
 
-2. (Optional) Customize the code and project as needed. Create a `.env` file if you need to use secrets.
+## Architecture
 
-```bash
-cp .env.example .env
-```
+The project uses a multi-agent architecture orchestrated by LangGraph:
 
-If you want to enable LangSmith tracing, add your LangSmith API key to the `.env` file.
-
-```text
-# .env
-LANGSMITH_API_KEY=lsv2...
-```
-
-3. Start the LangGraph Server.
-
-```shell
-langgraph dev
-```
-
-For more information on getting started with LangGraph Server, [see here](https://langchain-ai.github.io/langgraph/tutorials/langgraph-platform/local-server/).
-
-## How to customize
-
-1. **Define runtime context**: Modify the `Context` class in the `graph.py` file to expose the arguments you want to configure per assistant. For example, in a chatbot application you may want to define a dynamic system prompt or LLM to use. For more information on runtime context in LangGraph, [see here](https://langchain-ai.github.io/langgraph/agents/context/?h=context#static-runtime-context).
-
-2. **Extend the graph**: The core logic of the application is defined in [graph.py](./src/agent/graph.py). You can modify this file to add new nodes, edges, or change the flow of information.
-
-## Development
-
-While iterating on your graph in LangGraph Studio, you can edit past state and rerun your app from previous states to debug specific nodes. Local changes will be automatically applied via hot reload.
-
-Follow-up requests extend the same thread. You can create an entirely new thread, clearing previous history, using the `+` button in the top right.
-
-For more advanced features and examples, refer to the [LangGraph documentation](https://langchain-ai.github.io/langgraph/). These resources can help you adapt this template for your specific use case and build more sophisticated conversational agents.
-
-LangGraph Studio also integrates with [LangSmith](https://smith.langchain.com/) for more in-depth tracing and collaboration with teammates, allowing you to analyze and optimize your chatbot's performance.
-
+1.  **Trend Scanner**: Finds what's hot.
+2.  **ArXiv Fetcher**: Gets the science.
+3.  **Relevance Ranker**: Filters for you.
+4.  **Conversation**: Refines the output.
+5.  **Post Writer**: Drafts the content.
+6.  **Human Approval**: You have the final say.
+7.  **Memory Updater**: Learns from your feedback.

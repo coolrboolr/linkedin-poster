@@ -4,10 +4,10 @@
 all: help
 
 # Define a variable for the test file path.
-TEST_FILE ?= tests/unit_tests/
+TEST_FILE ?= tests
 
 test:
-	python -m pytest $(TEST_FILE)
+	python -m dotenv run pytest $(TEST_FILE)
 
 integration_tests:
 	python -m pytest tests/integration_tests 

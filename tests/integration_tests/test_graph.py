@@ -1,11 +1,12 @@
 import pytest
+import os
 
-from agent import graph
+from src.graph import graph
 
 pytestmark = pytest.mark.anyio
 
 
-@pytest.mark.langsmith
+@pytest.mark.skipif(not os.getenv("LANGSMITH_API_KEY"), reason="LANGSMITH_API_KEY not set; skipping LangSmith integration test.")
 async def test_agent_simple_passthrough() -> None:
     inputs = {"changeme": "some_val"}
     res = await graph.ainvoke(inputs)
