@@ -15,3 +15,4 @@ data/cache/*
 .langgraph_api/
 uv.lock
 AGENTS.md
+data/memory/comprehension_preferences.json
