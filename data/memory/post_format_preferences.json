@@ -2,6 +2,5 @@
   "length": "short",
   "emojis": true,
   "hashtags": true,
-  "max_iterations": 1,
-  "cta": "Invite readers to share their takeaways"
+  "extra": {}
 }

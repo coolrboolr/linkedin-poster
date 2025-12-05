@@ -1,4 +1,5 @@
 from typing import Optional
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -7,6 +8,11 @@ class Settings(BaseSettings):
     linkedin_client_id: Optional[str] = None
     linkedin_client_secret: Optional[str] = None
     llm_model: str = "openai:gpt-4o"
+    conversation_model: Optional[str] = Field(
+        default=None,
+        alias="CONVO_AGENT_MODEL",  # allow env override to match docs
+    )
+    tavily_api_key: Optional[str] = None
     
     model_config = SettingsConfigDict(
         env_file=".env",

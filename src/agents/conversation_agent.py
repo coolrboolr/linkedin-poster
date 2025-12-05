@@ -1,22 +1,122 @@
 import asyncio
 import json
-from typing import List, Dict, Any
-from src.state import AppState
-from src.services.logger import get_logger
-from langchain_core.prompts import ChatPromptTemplate
+from typing import Any, Dict, List, Optional
+
 from langchain.chat_models import init_chat_model
-from src.config.settings import settings
+from langchain_core.messages import ToolMessage
+from langchain_core.prompts import ChatPromptTemplate
 from langgraph.types import interrupt
-from src.core.constants import (
-    MEMORY_KIND_COMPREHENSION_FEEDBACK,
-)
+from langsmith import traceable
+from unittest.mock import MagicMock
+
+from src.config.settings import settings
+from src.core.chat_utils import render_chat_history, summarize_revisions
+from src.core.constants import MEMORY_KIND_COMPREHENSION_FEEDBACK
+from src.core.paths import PROMPTS_DIR
+from src.services.logger import get_logger
+from src.state import AppState
+from src.tools.research import expand_paper_context, search_web
 
 logger = get_logger(__name__)
 
-from src.core.paths import PROMPTS_DIR
-from src.core.chat_utils import render_chat_history, summarize_revisions
+TOOLS = [search_web, expand_paper_context]
+TOOL_MAP = {tool.name: tool for tool in TOOLS}
 
-from langsmith import traceable
+
+def _parse_conversation_output(text: str) -> tuple[list[str], str]:
+    """
+    Extract angle suggestions and the clarifying question from model output.
+    - Angles: lines starting with 'Angle' (bullet prefixes allowed).
+    - Clarifying question: line starting with 'Clarifying question:'; fallback to last non-empty line.
+    """
+    angles: list[str] = []
+    question: str = ""
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        bullet_stripped = stripped.lstrip("-•* ").strip()
+        if bullet_stripped.lower().startswith("angle"):
+            angles.append(bullet_stripped)
+        if bullet_stripped.lower().startswith("clarifying question:"):
+            question = bullet_stripped.removeprefix("Clarifying question:").strip()
+
+    if not question:
+        # Fallback to the last non-empty line
+        non_empty = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        if non_empty:
+            question = non_empty[-1]
+
+    return angles, question
+
+
+def _should_use_tools() -> bool:
+    tavily = getattr(settings, "tavily_api_key", None)
+    return bool(settings.openai_api_key and isinstance(tavily, str) and tavily.strip())
+
+
+async def _invoke_with_tools(
+    prompt_text: str,
+    inputs: Dict[str, Any],
+    llm_with_tools=None,
+) -> tuple[str, list[str], str]:
+    """
+    Run the clarification prompt with tool-calling enabled.
+    Returns (assistant_content, angles, question).
+    """
+    if llm_with_tools is None:
+        llm_model = settings.conversation_model or settings.llm_model
+        llm = init_chat_model(llm_model, api_key=settings.openai_api_key)
+        if not hasattr(llm, "bind_tools"):
+            raise RuntimeError("LLM does not support tool binding.")
+        llm_with_tools = llm.bind_tools(TOOLS)
+
+    prompt = ChatPromptTemplate.from_template(prompt_text)
+    messages = prompt.format_messages(**inputs)
+
+    # First LLM call: may emit tool calls
+    initial = await llm_with_tools.ainvoke(messages)
+    tool_calls = getattr(initial, "tool_calls", None) or []
+
+    if not tool_calls:
+        angles, question = _parse_conversation_output(initial.content)
+        return initial.content, angles, question
+
+    tool_messages: List[ToolMessage] = []
+    for call in tool_calls:
+        tool = TOOL_MAP.get(call.get("name"))
+        if not tool:
+            logger.warning(f"Unknown tool requested: {call.get('name')}")
+            continue
+        try:
+            result = tool.invoke(call.get("args", {}))
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error(f"Tool {tool.name} failed: {exc}")
+            result = f"{tool.name} unavailable."
+        tool_messages.append(
+            ToolMessage(
+                content=str(result),
+                tool_call_id=call.get("id"),
+            )
+        )
+
+    follow_up_messages = messages + [initial] + tool_messages
+    final = await llm_with_tools.ainvoke(follow_up_messages)
+    angles, question = _parse_conversation_output(final.content)
+    return final.content, angles, question
+
+
+async def _invoke_legacy(prompt_text: str, inputs: Dict[str, Any]) -> tuple[str, list[str], str]:
+    """
+    Legacy single-call clarification (no tools). Returns (content, angles, question).
+    """
+    model_name = settings.conversation_model or settings.llm_model
+    llm = init_chat_model(model_name, api_key=settings.openai_api_key)
+    chain = ChatPromptTemplate.from_template(prompt_text) | llm
+    result = await chain.ainvoke(inputs)
+    angles, question = _parse_conversation_output(result.content)
+    return result.content, angles, question
 
 @traceable
 async def conversation_node(state: AppState) -> dict:
@@ -114,13 +214,12 @@ async def conversation_node(state: AppState) -> dict:
         logger.error("OPENAI_API_KEY not set; cannot call LLM.")
         return {"user_ready": True}
 
-    llm = init_chat_model(
-        settings.llm_model,
-        api_key=settings.openai_api_key,
-    )
-    chain = ChatPromptTemplate.from_template(prompt_text) | llm
+    llm_model = settings.conversation_model or settings.llm_model
+    llm = init_chat_model(llm_model, api_key=settings.openai_api_key)
+    tool_ready = _should_use_tools() and hasattr(llm, "bind_tools") and not isinstance(llm, MagicMock)
+    llm_with_tools = llm.bind_tools(TOOLS) if tool_ready else None
 
-    logger.info("Generating clarification question.")
+    logger.info("Generating clarification content (tools enabled=%s).", tool_ready)
 
     history_text = render_chat_history(state.chat_history)
     revision_summary = summarize_revisions(state.revision_history)
@@ -137,17 +236,18 @@ async def conversation_node(state: AppState) -> dict:
 
     # Only catch errors from the LLM call; allow interrupts to bubble so the UI can pause/resume.
     try:
-        result = await chain.ainvoke(inputs)
+        if tool_ready and llm_with_tools:
+            assistant_content, angles, question = await _invoke_with_tools(prompt_text, inputs)
+        else:
+            assistant_content, angles, question = await _invoke_legacy(prompt_text, inputs)
     except Exception as e:
         logger.error(f"Error generating clarification question: {e}")
         return {"user_ready": True}  # Fallback to proceed
 
-    question = result.content
-
     logger.info(f"Clarification question: {question}")
 
     new_chat_history = state.chat_history + [
-        {"role": "assistant", "source": "conversation", "message": question}
+        {"role": "assistant", "source": "conversation", "message": assistant_content}
     ]
     new_clarification_history = state.clarification_history + [question]
 
@@ -155,6 +255,9 @@ async def conversation_node(state: AppState) -> dict:
         f"{entry.get('role','assistant').capitalize()}[{entry.get('source','conversation')}]: {entry.get('message','')}"
         for entry in new_chat_history
     ]
+    if angles:
+        description_lines.append("\nProposed angles:")
+        description_lines.extend(angles)
     description_lines.append("\n---\nSelecting 'Ignore' will cancel this session and end the run.")
     description = "\n".join(description_lines)
 
@@ -178,4 +281,7 @@ async def conversation_node(state: AppState) -> dict:
     raw = interrupt(payload)
     user_answer = raw[0] if isinstance(raw, (list, tuple)) and raw else raw
 
-    return handle_user_answer(user_answer, new_chat_history, new_clarification_history)
+    updates = handle_user_answer(user_answer, new_chat_history, new_clarification_history)
+    if angles:
+        updates["angle_suggestions"] = angles
+    return updates

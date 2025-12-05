@@ -1,8 +1,8 @@
 {
-  "level": "advanced",
+  "level": "intermediate",
   "tone": "professional",
   "depth": "detailed",
-  "examples": null,
-  "math_vs_intuition": "math",
+  "examples": true,
+  "math_vs_intuition": "intuition",
   "jargon": null
 }

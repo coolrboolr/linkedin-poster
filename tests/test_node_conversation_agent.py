@@ -1,6 +1,7 @@
 from src.agents.conversation_agent import conversation_node
+from src.config.settings import settings
 from src.state import AppState
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 import pytest
 from langgraph.errors import GraphInterrupt
 
@@ -8,7 +9,8 @@ from langgraph.errors import GraphInterrupt
 async def test_conversation_agent_openai():
     # Case 1: Paper selected -> model asks, user says READY
     state = AppState(selected_paper={"title": "Paper", "summary": "Summary"})
-    with patch('src.agents.conversation_agent.init_chat_model') as MockInitModel, \
+    with patch.object(settings, "openai_api_key", "test-key", create=True), \
+         patch('src.agents.conversation_agent.init_chat_model') as MockInitModel, \
          patch('src.agents.conversation_agent.ChatPromptTemplate') as MockPrompt, \
          patch('src.agents.conversation_agent.interrupt', return_value={"type": "accept", "args": None}) as mock_interrupt:
 
@@ -33,7 +35,8 @@ async def test_conversation_agent_openai():
     # Case 2: No paper -> Clarification
     state = AppState(selected_paper=None)
     
-    with patch('src.agents.conversation_agent.init_chat_model') as MockInitModel, \
+    with patch.object(settings, "openai_api_key", "test-key", create=True), \
+         patch('src.agents.conversation_agent.init_chat_model') as MockInitModel, \
          patch('src.agents.conversation_agent.ChatPromptTemplate') as MockPrompt, \
          patch('src.agents.conversation_agent.interrupt', return_value=None) as mock_interrupt:
         
@@ -57,7 +60,8 @@ async def test_conversation_agent_openai():
     # Case 3: No paper -> Clarification (LLM asks, then user interrupts)
     state = AppState(selected_paper=None)
     
-    with patch('src.agents.conversation_agent.init_chat_model') as MockInitModel, \
+    with patch.object(settings, "openai_api_key", "test-key", create=True), \
+         patch('src.agents.conversation_agent.init_chat_model') as MockInitModel, \
          patch('src.agents.conversation_agent.ChatPromptTemplate') as MockPrompt, \
          patch('src.agents.conversation_agent.interrupt', return_value={"type": "accept", "args": None}) as mock_interrupt:
         
@@ -79,7 +83,8 @@ async def test_conversation_agent_openai():
 @pytest.mark.asyncio
 async def test_conversation_agent_propagates_interrupt():
     state = AppState(selected_paper={"title": "Paper", "summary": "Summary"})
-    with patch('src.agents.conversation_agent.init_chat_model') as MockInitModel, \
+    with patch.object(settings, "openai_api_key", "test-key", create=True), \
+         patch('src.agents.conversation_agent.init_chat_model') as MockInitModel, \
          patch('src.agents.conversation_agent.ChatPromptTemplate') as MockPrompt, \
          patch('src.agents.conversation_agent.interrupt', side_effect=GraphInterrupt("test interrupt")):
 
@@ -102,7 +107,8 @@ async def test_conversation_agent_propagates_interrupt():
 @pytest.mark.asyncio
 async def test_conversation_agent_response_adds_memory_and_history():
     state = AppState(selected_paper={"title": "Paper", "summary": "Summary"})
-    with patch('src.agents.conversation_agent.init_chat_model') as MockInitModel, \
+    with patch.object(settings, "openai_api_key", "test-key", create=True), \
+         patch('src.agents.conversation_agent.init_chat_model') as MockInitModel, \
          patch('src.agents.conversation_agent.ChatPromptTemplate') as MockPrompt, \
          patch('src.agents.conversation_agent.interrupt', return_value={"type": "response", "args": "Can you simplify?"}):
 
@@ -128,7 +134,8 @@ async def test_conversation_agent_response_adds_memory_and_history():
 @pytest.mark.asyncio
 async def test_conversation_agent_ignore_sets_exit():
     state = AppState(selected_paper={"title": "Paper", "summary": "Summary"})
-    with patch('src.agents.conversation_agent.init_chat_model') as MockInitModel, \
+    with patch.object(settings, "openai_api_key", "test-key", create=True), \
+         patch('src.agents.conversation_agent.init_chat_model') as MockInitModel, \
          patch('src.agents.conversation_agent.ChatPromptTemplate') as MockPrompt, \
          patch('src.agents.conversation_agent.interrupt', return_value={"type": "ignore", "args": None}):
 
@@ -147,3 +154,26 @@ async def test_conversation_agent_ignore_sets_exit():
         updates = await conversation_node(state)
 
         assert updates["exit_requested"] is True
+
+
+@pytest.mark.asyncio
+async def test_conversation_agent_sets_angles_when_tools_used():
+    state = AppState(selected_paper={"title": "Paper", "summary": "Summary"})
+
+    async def fake_invoke(prompt_text, inputs):
+        return (
+            "Context\nAngle A: safety\nAngle B: robustness\nClarifying question: Pick one?",
+            ["Angle A: safety", "Angle B: robustness"],
+            "Pick one?",
+        )
+
+    with patch.object(settings, "openai_api_key", "test-key", create=True), \
+         patch("src.agents.conversation_agent._should_use_tools", return_value=True), \
+         patch("src.agents.conversation_agent._invoke_with_tools", new=AsyncMock(side_effect=fake_invoke)), \
+         patch("src.agents.conversation_agent.interrupt", return_value={"type": "accept", "args": None}):
+
+        updates = await conversation_node(state)
+
+    assert updates["user_ready"] is True
+    assert updates["clarification_history"][-1] == "Pick one?"
+    assert updates["angle_suggestions"] == ["Angle A: safety", "Angle B: robustness"]

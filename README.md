@@ -24,6 +24,14 @@ A LangGraph-based agent that scans Google Trends, fetches relevant ArXiv papers,
     ```bash
     cp .env.example .env
     ```
+    Required:
+    - `OPENAI_API_KEY` (LLM access)
+    - `LANGSMITH_API_KEY` (tracing/evals)
+    
+    Tool-enabled conversation research:
+    - `TAVILY_API_KEY` enables web search inside the conversation agent.
+    - `CONVO_AGENT_MODEL` (optional) overrides the base model just for the conversation agent.
+    If `TAVILY_API_KEY` is missing, the conversation node falls back to the legacy single-question flow.
 
 3.  **Run the Agent (blocking-friendly)**:
     ```bash

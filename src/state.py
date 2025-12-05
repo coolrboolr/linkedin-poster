@@ -22,6 +22,10 @@ class AppState(BaseModel):
         default_factory=list,
         description="Shared log of assistant/user messages across conversation and approvals. Entries: {role, source, message}.",
     )
+    angle_suggestions: Optional[List[str]] = Field(
+        default=None,
+        description="Optional list of candidate post angles proposed during the conversation.",
+    )
     
     # Post Generation
     post_draft: Optional[str] = Field(None, description="The generated LinkedIn post draft.")

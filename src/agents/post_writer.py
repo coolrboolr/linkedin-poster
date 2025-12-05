@@ -1,17 +1,28 @@
 import asyncio
-from typing import List, Dict, Any
-from src.state import AppState
-from src.services.logger import get_logger
-from langchain_core.prompts import ChatPromptTemplate
-from langchain.chat_models import init_chat_model
-from src.config.settings import settings
+from typing import Dict, Any
 
-from src.core.paths import PROMPTS_DIR
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import ToolMessage
+from langchain_core.prompts import ChatPromptTemplate
+from langsmith import traceable
+from unittest.mock import MagicMock
+
+from src.config.settings import settings
 from src.core.chat_utils import render_chat_snippet, summarize_revisions
+from src.core.paths import PROMPTS_DIR
+from src.services.logger import get_logger
+from src.state import AppState
+from src.tools.research import expand_paper_context, search_web
 
 logger = get_logger(__name__)
 
-from langsmith import traceable
+TOOLS = [search_web, expand_paper_context]
+TOOL_MAP = {tool.name: tool for tool in TOOLS}
+
+
+def _should_use_tools() -> bool:
+    tavily = getattr(settings, "tavily_api_key", None)
+    return bool(settings.openai_api_key and isinstance(tavily, str) and tavily.strip())
 
 @traceable
 async def write_post(state: AppState) -> dict:
@@ -40,7 +51,9 @@ async def write_post(state: AppState) -> dict:
         settings.llm_model,
         api_key=settings.openai_api_key,
     )
-    chain = ChatPromptTemplate.from_template(prompt_text) | llm
+    prompt = ChatPromptTemplate.from_template(prompt_text)
+    tool_ready = _should_use_tools() and hasattr(llm, "bind_tools") and not isinstance(llm, MagicMock)
+    llm_with_tools = llm.bind_tools(TOOLS) if tool_ready else None
     
     # Prepare inputs
     # Extract formatting preferences and convert them into prompt-ready instructions
@@ -83,8 +96,37 @@ async def write_post(state: AppState) -> dict:
     }
     
     try:
-        result = await chain.ainvoke(inputs)
-        new_draft = result.content
+        if tool_ready and llm_with_tools:
+            messages = prompt.format_messages(**inputs)
+            initial = await llm_with_tools.ainvoke(messages)
+            tool_calls = getattr(initial, "tool_calls", None) or []
+
+            if tool_calls:
+                tool_messages = []
+                for call in tool_calls:
+                    tool = TOOL_MAP.get(call.get("name"))
+                    if not tool:
+                        logger.warning(f"Unknown tool requested: {call.get('name')}")
+                        continue
+                    try:
+                        tool_result = tool.invoke(call.get("args", {}))
+                    except Exception as exc:  # pragma: no cover - defensive
+                        logger.error(f"Tool {tool.name} failed: {exc}")
+                        tool_result = f"{tool.name} unavailable."
+                    tool_messages.append(
+                        ToolMessage(content=str(tool_result), tool_call_id=call.get("id"))
+                    )
+
+                final = await llm_with_tools.ainvoke(messages + [initial] + tool_messages)
+                result_content = final.content
+            else:
+                result_content = initial.content
+        else:
+            chain = prompt | llm
+            result = await chain.ainvoke(inputs)
+            result_content = result.content
+
+        new_draft = result_content
         new_post_history = state.post_history + [
             {
                 "origin": "llm",
