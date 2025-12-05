@@ -67,7 +67,7 @@ async def test_memory_updater_style_update(tmp_path):
         mock_store_instance.save.assert_called_once()
         
         # Verify state update
-        assert updates["memory"]["post_format_preferences"] == {"length": "short"}
+        assert updates["memory"]["post_format_preferences"]["length"] == "short"
 
 
 @pytest.mark.asyncio

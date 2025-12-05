@@ -151,8 +151,9 @@ workflow.add_edge("human_approval", "execution_router")
 # Memory Updater -> End
 workflow.add_edge("memory_updater", END)
 
-# Compile
-graph = workflow.compile()
+# Compile with in-memory checkpointing for LangSmith visibility
+checkpointer = MemorySaver()
+graph = workflow.compile(checkpointer=checkpointer)
 
 if __name__ == "__main__":
     import asyncio

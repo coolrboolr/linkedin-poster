@@ -7,6 +7,9 @@ from src.memory.models import (
     PostFormatPreferences,
     ComprehensionPreferences,
 )
+from src.services.logger import get_logger
+
+logger = get_logger(__name__)
 
 class MemoryStore:
     """
@@ -32,6 +35,8 @@ class MemoryStore:
         try:
             return json.loads(path.read_text())
         except json.JSONDecodeError:
+            logger.error(f"Corrupted memory file detected; resetting: {filename}")
+            path.write_text("{}")
             return {}
 
     def save(self):
@@ -40,6 +45,7 @@ class MemoryStore:
         (MEMORY_PATH / "topic_preferences.json").write_text(json.dumps(self.topic, indent=2))
         (MEMORY_PATH / "comprehension_preferences.json").write_text(json.dumps(self.comp, indent=2))
         (MEMORY_PATH / "post_format_preferences.json").write_text(json.dumps(self.format, indent=2))
+        logger.info("[MemoryStore] Saving memory", extra={"memory": self.get_all()})
 
     @property
     def topic_model(self) -> TopicPreferences:
@@ -54,9 +60,9 @@ class MemoryStore:
         return ComprehensionPreferences(**(self.comp or {}))
 
     def get_all(self) -> Dict[str, Any]:
-        """Returns a consolidated dictionary of all memory."""
+        """Returns a consolidated, normalized dictionary of all memory."""
         return {
-            "topic_preferences": self.topic,
-            "comprehension_preferences": self.comp,
-            "post_format_preferences": self.format
+            "topic_preferences": self.topic_model.model_dump(),
+            "comprehension_preferences": self.comp_model.model_dump(),
+            "post_format_preferences": self.format_model.model_dump(),
         }

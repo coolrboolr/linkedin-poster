@@ -14,6 +14,8 @@ class TopicPreferences(BaseModel):
 class PostFormatPreferences(BaseModel):
     """Preferences for how LinkedIn posts should be formatted."""
 
+    model_config = ConfigDict(extra="allow")
+
     length: Literal["short", "medium", "long"] = "medium"
     emojis: bool = True
     hashtags: bool = True

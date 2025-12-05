@@ -59,3 +59,7 @@ class AppState(BaseModel):
         default_factory=list,
         description="Structured feedback events to persist in memory_updater.",
     )
+
+    def safe(self):
+        """Return a JSON-serializable snapshot of state."""
+        return self.model_dump()

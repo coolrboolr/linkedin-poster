@@ -1,4 +1,6 @@
 import asyncio
+import json
+import copy
 from src.state import AppState
 from src.memory import MemoryStore
 from src.services.logger import get_logger
@@ -26,14 +28,15 @@ async def update_memory(state: AppState) -> dict:
         return {"memory_events": []}
     
     store = MemoryStore()
+    baseline_memory = copy.deepcopy(store.get_all())
     
     events = state.memory_events or []
 
-    # Fast path: nothing to do
+    # Fast path: nothing to do — return normalized disk memory to avoid stale state merges
     if not events and not (state.approved and state.selected_paper):
-        updated_memory = dict(state.memory or {})
-        updated_memory.update(store.get_all())
-        return {"memory": updated_memory, "memory_events": []}
+        normalized_memory = store.get_all()
+        state.memory_events.clear()
+        return {"memory": normalized_memory, "memory_events": []}
 
     style_llm = None
     comp_llm = None
@@ -60,7 +63,23 @@ async def update_memory(state: AppState) -> dict:
 
     await asyncio.to_thread(store.save)
 
-    updated_memory = dict(state.memory or {})
-    updated_memory.update(store.get_all())
+    normalized_memory = store.get_all()
 
-    return {"memory": updated_memory, "memory_events": []}
+    logger.info(
+        "Memory diff after update",
+        extra={
+            "before": baseline_memory,
+            "after": normalized_memory,
+        },
+    )
+
+    try:
+        json.dumps(normalized_memory)
+    except Exception as e:
+        logger.error(f"Memory not JSON-serializable: {e}")
+
+    logger.info("Memory Updater completed; checkpoint boundary reached.")
+
+    state.memory_events.clear()
+
+    return {"memory": normalized_memory, "memory_events": []}
