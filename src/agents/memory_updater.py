@@ -31,7 +31,7 @@ async def update_memory(state: AppState) -> dict:
 
     # Fast path: nothing to do
     if not events and not (state.approved and state.selected_paper):
-        updated_memory = state.memory.copy()
+        updated_memory = dict(state.memory or {})
         updated_memory.update(store.get_all())
         return {"memory": updated_memory, "memory_events": []}
 
@@ -45,8 +45,8 @@ async def update_memory(state: AppState) -> dict:
             settings.llm_model,
             api_key=settings.openai_api_key,
         )
-        style_llm = base_llm.with_structured_output(PostFormatPreferencesUpdate)
-        comp_llm = base_llm.with_structured_output(ComprehensionPreferences)
+        style_llm = base_llm.with_structured_output(PostFormatPreferencesUpdate, method="function_calling")
+        comp_llm = base_llm.with_structured_output(ComprehensionPreferences, method="function_calling")
 
     await apply_memory_events(
         store=store,
@@ -60,7 +60,7 @@ async def update_memory(state: AppState) -> dict:
 
     await asyncio.to_thread(store.save)
 
-    updated_memory = state.memory.copy()
+    updated_memory = dict(state.memory or {})
     updated_memory.update(store.get_all())
 
     return {"memory": updated_memory, "memory_events": []}

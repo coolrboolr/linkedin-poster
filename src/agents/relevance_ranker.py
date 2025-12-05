@@ -42,7 +42,7 @@ async def rank_papers(state: AppState) -> dict:
         settings.llm_model,
         api_key=settings.openai_api_key,
     )
-    structured_llm = llm.with_structured_output(RankingChoice)
+    structured_llm = llm.with_structured_output(RankingChoice, method="function_calling")
     chain = ChatPromptTemplate.from_template(prompt_text) | structured_llm
     
     # Prepare inputs
@@ -50,7 +50,7 @@ async def rank_papers(state: AppState) -> dict:
     papers_str = json.dumps([{ "title": p["title"], "summary": p["summary"][:200] } for p in candidates], indent=2)
     
     # Use memory for interests
-    interests = state.memory.get("topic_preferences", {})
+    interests = (state.memory or {}).get("topic_preferences", {})
     
     inputs = {
         "topic": state.trending_keywords[0] if state.trending_keywords else "General AI",

@@ -12,4 +12,4 @@ If no paper is provided, use:
 - Preferences: {preferences}
 
 Ask exactly one concise clarifying question that moves the user closer to a clear post angle.
-If you already have enough information, respond with "READY, [a summary of the angle]".
+Do not answer or summarize the post angle yourself; the human will signal readiness through the interface.

@@ -10,7 +10,7 @@ async def test_conversation_agent_openai():
     state = AppState(selected_paper={"title": "Paper", "summary": "Summary"})
     with patch('src.agents.conversation_agent.init_chat_model') as MockInitModel, \
          patch('src.agents.conversation_agent.ChatPromptTemplate') as MockPrompt, \
-         patch('src.agents.conversation_agent.interrupt', return_value={"type": "accept", "args": "READY"}) as mock_interrupt:
+         patch('src.agents.conversation_agent.interrupt', return_value={"type": "accept", "args": None}) as mock_interrupt:
 
         mock_runnable = MagicMock()
 
@@ -59,7 +59,7 @@ async def test_conversation_agent_openai():
     
     with patch('src.agents.conversation_agent.init_chat_model') as MockInitModel, \
          patch('src.agents.conversation_agent.ChatPromptTemplate') as MockPrompt, \
-         patch('src.agents.conversation_agent.interrupt', return_value={"type": "accept", "args": "READY"}) as mock_interrupt:
+         patch('src.agents.conversation_agent.interrupt', return_value={"type": "accept", "args": None}) as mock_interrupt:
         
         mock_runnable = MagicMock()
         async def async_return(*args, **kwargs):

@@ -41,10 +41,24 @@ A LangGraph-based agent that scans Google Trends, fetches relevant ArXiv papers,
 
 ## Testing
 
-Run tests with LangSmith tracing enabled:
+LangSmith-backed grading is opt-in and gated by environment variables:
+
+- `LANGSMITH_API_KEY` must be non-empty.
+- `LANGSMITH_TRACING=true` and `LANGSMITH_PROJECT=linkedin-poster-evals`.
+- `ENABLE_AUTO_GRADING=true` (set to `false` to skip all LangSmith-marked tests).
+- Thresholds (override as needed): `MIN_POST_QUALITY=0.7`, `MIN_CLARITY_SCORE=0.7`, `MIN_RANKING_SCORE=0.7`, `MIN_APPROVAL_COPY_SCORE=0.7`.
+- Judge model override: `LLM_JUDGE_MODEL=openai:gpt-4o-mini` (defaults to this value).
+
+Run the grading subset:
 
 ```bash
-dotenv run pytest
+python -m dotenv run pytest -m langsmith
+```
+
+Or run the full suite (also respects the gating env vars):
+
+```bash
+make test
 ```
 
 ## Architecture

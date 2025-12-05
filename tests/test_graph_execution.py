@@ -18,7 +18,7 @@ async def test_full_graph_execution():
          patch('src.agents.conversation_agent.init_chat_model') as MockConvModel, \
          patch('src.agents.post_writer.init_chat_model') as MockWriterModel, \
          patch('src.agents.human_approval.interrupt', return_value={"type": "accept", "args": "Looks good"}) as mock_approval_interrupt, \
-         patch('src.agents.conversation_agent.interrupt', return_value={"type": "accept", "args": "READY"}) as mock_conv_interrupt, \
+         patch('src.agents.conversation_agent.interrupt', return_value={"type": "accept", "args": None}) as mock_conv_interrupt, \
          patch('src.agents.human_paper_review.interrupt', return_value={"type": "accept", "args": None}) as mock_review_interrupt, \
          patch('src.agents.memory_loader.MemoryStore') as MockStoreLoader, \
          patch('src.agents.memory_updater.MemoryStore') as MockStoreUpdater:
@@ -128,7 +128,7 @@ async def test_full_graph_revise_flow():
          patch('src.agents.conversation_agent.init_chat_model') as MockConvModel, \
          patch('src.agents.post_writer.init_chat_model') as MockWriterModel, \
          patch('src.agents.human_approval.interrupt') as mock_approval_interrupt, \
-         patch('src.agents.conversation_agent.interrupt', return_value={"type": "accept", "args": "READY"}) as mock_conv_interrupt, \
+         patch('src.agents.conversation_agent.interrupt', return_value={"type": "accept", "args": None}) as mock_conv_interrupt, \
          patch('src.agents.human_paper_review.interrupt', return_value={"type": "accept", "args": None}) as mock_review_interrupt, \
          patch('src.agents.memory_loader.MemoryStore') as MockStoreLoader, \
          patch('src.agents.memory_updater.MemoryStore') as MockStoreUpdater:
