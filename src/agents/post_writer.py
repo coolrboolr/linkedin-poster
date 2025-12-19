@@ -83,6 +83,18 @@ async def write_post(state: AppState) -> dict:
     latest_instruction = state.human_feedback or ""
     revision_summary = summarize_revisions(state.revision_history)
     chat_snippet = render_chat_snippet(state.chat_history)
+    edit_requests = state.edit_requests or []
+    edit_request_lines = []
+    for idx, req in enumerate(edit_requests, start=1):
+        instruction = (req.get("instruction") or "").strip()
+        if not instruction:
+            continue
+        source = (req.get("source") or "").strip()
+        req_type = (req.get("type") or "").strip()
+        label = "/".join(part for part in (source, req_type) if part)
+        prefix = f"{idx}. {label}: " if label else f"{idx}. "
+        edit_request_lines.append(f"{prefix}{instruction}")
+    all_edit_requests = "\n".join(edit_request_lines) if edit_request_lines else "None."
 
     inputs = {
         "title": paper['title'],
@@ -93,6 +105,7 @@ async def write_post(state: AppState) -> dict:
         "latest_instruction": latest_instruction,
         "revision_summary": revision_summary,
         "chat_history": chat_snippet,
+        "all_edit_requests": all_edit_requests,
     }
     
     try:
@@ -109,7 +122,7 @@ async def write_post(state: AppState) -> dict:
                         logger.warning(f"Unknown tool requested: {call.get('name')}")
                         continue
                     try:
-                        tool_result = tool.invoke(call.get("args", {}))
+                        tool_result = await tool.ainvoke(call.get("args", {}))
                     except Exception as exc:  # pragma: no cover - defensive
                         logger.error(f"Tool {tool.name} failed: {exc}")
                         tool_result = f"{tool.name} unavailable."

@@ -24,6 +24,7 @@ async def test_human_approval_edit_triggers_revision():
     assert updates["approved"] is False
     assert updates["revision_requested"] is True
     assert updates["post_draft"] == "Edited Draft"
+    assert updates["edit_requests"][-1]["type"] == "edit"
 
 
 @pytest.mark.asyncio
@@ -35,6 +36,7 @@ async def test_human_approval_response_returns_to_conversation():
     assert updates["return_to_conversation"] is True
     assert updates["user_ready"] is False
     assert "Please tweak tone" in updates["clarification_history"][-1]
+    assert updates["edit_requests"][-1]["instruction"] == "Please tweak tone"
 
 
 @pytest.mark.asyncio

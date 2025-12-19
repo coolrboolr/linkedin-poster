@@ -42,9 +42,19 @@ async def human_paper_review(state: AppState) -> dict:
         "index": selected_index,
     }
 
+    def append_user_feedback(message: str | None, source: str = "paper_review"):
+        new_chat_history = state.chat_history
+        new_clarification_history = state.clarification_history
+        if message:
+            new_chat_history = new_chat_history + [
+                {"role": "user", "source": source, "message": message}
+            ]
+            new_clarification_history = new_clarification_history + [f"User: {message}"]
+        return new_chat_history, new_clarification_history
+
     # Prepare payload for the user
     payload = {
-        "description": f"""Review the selected paper. Approve to proceed, or provide an index to switch.
+        "description": f"""Review the selected paper. Approve to proceed, respond to ask questions or refine the research focus, or provide an index to switch.
 
 Selecting 'Ignore' will end the current run.
 
@@ -74,12 +84,16 @@ Index: {selected_paper['index']}
     
     raw = interrupt(payload)
     response = raw[0] if isinstance(raw, (list, tuple)) and raw else raw
+    if not response or not isinstance(response, dict):
+        logger.warning("No response received from paper review interrupt.")
+        return {"paper_approved": False, "user_ready": False}
     feedback = None
     state_memory_events = state.memory_events
     # Keep routing entirely on interrupt type
     if response["type"] == "response":
         raw_args = response.get("args")
         feedback = raw_args if isinstance(raw_args, str) else (json.dumps(raw_args) if raw_args else None)
+        new_chat_history, new_clarification_history = append_user_feedback(feedback)
         if feedback:
             memory_event = {
                 "kind": MEMORY_KIND_PAPER_FEEDBACK,
@@ -89,9 +103,20 @@ Index: {selected_paper['index']}
                 "topic": state.trending_keywords[0] if state.trending_keywords else None,
             }
             state_memory_events = state_memory_events + [memory_event]
+        return {
+            "paper_approved": False,
+            "user_ready": False,
+            "chat_history": new_chat_history,
+            "clarification_history": new_clarification_history,
+            "memory_events": state_memory_events,
+        }
     
     if response["type"] == "accept":
         logger.info("User approved the paper.")
+        raw_args = response.get("args")
+        feedback = raw_args if isinstance(raw_args, str) else (json.dumps(raw_args) if raw_args else None)
+        approval_note = feedback or "Approved selected paper."
+        new_chat_history, new_clarification_history = append_user_feedback(approval_note)
         approval_event = {
             "kind": MEMORY_KIND_PAPER_SELECTION,
             "source": "paper_review",
@@ -99,7 +124,12 @@ Index: {selected_paper['index']}
             "topic": state.trending_keywords[0] if state.trending_keywords else None,
             "polarity": "confirm",
         }
-        return {"paper_approved": True, "memory_events": state_memory_events + [approval_event]}
+        return {
+            "paper_approved": True,
+            "chat_history": new_chat_history,
+            "clarification_history": new_clarification_history,
+            "memory_events": state_memory_events + [approval_event],
+        }
     
     if response["type"] == "edit":
         idx_raw = response.get("args", {}).get("Selected Paper")
@@ -112,6 +142,8 @@ Index: {selected_paper['index']}
         if 0 <= idx < len(state.paper_candidates):
             new_paper = state.paper_candidates[idx]
             logger.info(f"User switched paper to index {idx}: {new_paper.get('title')}")
+            selection_note = f"Switched paper to: {idx_raw}"
+            new_chat_history, new_clarification_history = append_user_feedback(selection_note)
             selection_event = {
                 "kind": MEMORY_KIND_PAPER_SELECTION,
                 "source": "paper_review",
@@ -124,6 +156,8 @@ Index: {selected_paper['index']}
                 # Selecting a specific paper counts as approval
                 "paper_approved": True,
                 "user_ready": True,
+                "chat_history": new_chat_history,
+                "clarification_history": new_clarification_history,
                 "memory_events": state.memory_events + [selection_event],
             }
 
@@ -132,10 +166,13 @@ Index: {selected_paper['index']}
 
     if response["type"] == "ignore":
         logger.info("User ignored paper review prompt.")
+        new_chat_history, new_clarification_history = append_user_feedback("User chose to ignore/exit.")
         return {
             "paper_approved": False,
             "user_ready": False,
             "exit_requested": True,
+            "chat_history": new_chat_history,
+            "clarification_history": new_clarification_history,
         }
             
     # Default reject/retry: treat as not ready so we can return to conversation

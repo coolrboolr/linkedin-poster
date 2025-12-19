@@ -1,3 +1,4 @@
+import asyncio
 import arxiv
 from langsmith import traceable
 from typing import List, Dict, Any
@@ -11,24 +12,26 @@ class ArxivService:
         self.client = arxiv.Client()
         self.cache_file = "arxiv_cache.json"
 
+
+
     # Helper methods for cache (assuming they will be added or are implicitly handled)
-    def _get_from_cache(self, query: str) -> List[Dict[str, Any]]:
-        cache = load_cache(self.cache_file)
+    async def _get_from_cache(self, query: str) -> List[Dict[str, Any]]:
+        cache = await load_cache(self.cache_file)
         return cache.get(query)
 
-    def _save_to_cache(self, query: str, results: List[Dict[str, Any]]):
-        cache = load_cache(self.cache_file)
+    async def _save_to_cache(self, query: str, results: List[Dict[str, Any]]):
+        cache = await load_cache(self.cache_file)
         cache[query] = results
-        save_cache(self.cache_file, cache)
+        await save_cache(self.cache_file, cache)
 
     @traceable
-    def search_papers(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+    async def search_papers(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
         """
         Searches ArXiv for papers matching the query.
         """
         logger.info(f"Searching ArXiv for: {query}")
         
-        cached = self._get_from_cache(query)
+        cached = await self._get_from_cache(query)
         if cached:
             logger.info(f"ArXiv cache hit for query: {query}")
             return cached
@@ -46,22 +49,26 @@ class ArxivService:
                 sort_by=arxiv.SortCriterion.SubmittedDate
             )
             
-            results = []
-            for result in self.client.results(search):
-                # Normalize summary
-                summary = result.summary.replace("\n", " ").strip()
-                # Remove latex (simple heuristic)
-                summary = summary.replace("$", "")
-                
-                results.append({
-                    "title": result.title,
-                    "summary": summary,
-                    "url": result.entry_id,
-                    "published": result.published.isoformat()
-                })
+            def _fetch_results():
+                results_list = []
+                for result in self.client.results(search):
+                    # Normalize summary
+                    summary = result.summary.replace("\n", " ").strip()
+                    # Remove latex (simple heuristic)
+                    summary = summary.replace("$", "")
+                    
+                    results_list.append({
+                        "title": result.title,
+                        "summary": summary,
+                        "url": result.entry_id,
+                        "published": result.published.isoformat()
+                    })
+                return results_list
+
+            results = await asyncio.to_thread(_fetch_results)
             
             if results:
-                self._save_to_cache(query, results)
+                await self._save_to_cache(query, results)
                 
             return results
         except Exception as e:

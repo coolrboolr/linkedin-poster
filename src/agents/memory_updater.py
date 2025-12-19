@@ -28,6 +28,7 @@ async def update_memory(state: AppState) -> dict:
         return {"memory_events": []}
     
     store = MemoryStore()
+    await store.load()
     baseline_memory = copy.deepcopy(store.get_all())
     
     events = state.memory_events or []
@@ -61,7 +62,7 @@ async def update_memory(state: AppState) -> dict:
         comp_llm=comp_llm,
     )
 
-    await asyncio.to_thread(store.save)
+    await store.save()
 
     normalized_memory = store.get_all()
 

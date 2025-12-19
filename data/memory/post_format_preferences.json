@@ -2,5 +2,9 @@
   "length": "short",
   "emojis": true,
   "hashtags": true,
-  "extra": {}
+  "extra": {
+    "message_style": "concise_impact",
+    "purpose": "profound brevity",
+    "emoji_usage": "strategic"
+  }
 }

@@ -5,6 +5,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain.chat_models import init_chat_model
 from src.config.settings import settings
 from src.core.paths import PROMPTS_DIR
+from src.core.chat_utils import render_chat_snippet
 
 import json
 from pydantic import BaseModel
@@ -51,10 +52,12 @@ async def rank_papers(state: AppState) -> dict:
     
     # Use memory for interests
     interests = (state.memory or {}).get("topic_preferences", {})
+    conversation_context = render_chat_snippet(state.chat_history, max_items=6)
     
     inputs = {
         "topic": state.trending_keywords[0] if state.trending_keywords else "General AI",
         "interests": interests,
+        "conversation": conversation_context,
         "papers": papers_str
     }
     

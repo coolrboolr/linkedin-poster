@@ -6,7 +6,15 @@
   ],
   "avoid": [],
   "liked_topics": [
+    "Paper",
+    "Skyra: AI-Generated Video Detection via Grounded Artifact Reasoning",
     "ThetaEvolve: Test-time Learning on Open Problems"
   ],
-  "feedback_log": []
+  "feedback_log": [
+    {
+      "message": "what are the factors or features used in this model and what is identifying?\n",
+      "title": "Skyra: AI-Generated Video Detection via Grounded Artifact Reasoning",
+      "topic": "ai generator"
+    }
+  ]
 }

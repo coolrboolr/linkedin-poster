@@ -24,7 +24,8 @@ async def fetch_arxiv_papers(state: AppState) -> dict:
     # Arxiv API supports boolean operators AND, OR, ANDNOT
     quoted_keywords = [f'all:"{k.strip().replace(chr(34), "")}"' for k in keywords[:3]]
     query = " OR ".join(quoted_keywords)
-    loop = asyncio.get_running_loop()
-    papers = await loop.run_in_executor(None, arxiv_service.search_papers, query)
+    query = " OR ".join(quoted_keywords)
+    # Service is now async, so we await directly
+    papers = await arxiv_service.search_papers(query)
     
     return {"paper_candidates": papers}

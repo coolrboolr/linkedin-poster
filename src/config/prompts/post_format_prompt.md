@@ -11,6 +11,9 @@ Previous draft:
 Latest user instruction:
 {latest_instruction}
 
+All requested changes (ordered):
+{all_edit_requests}
+
 Recent revision history:
 {revision_summary}
 

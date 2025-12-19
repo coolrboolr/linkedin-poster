@@ -39,7 +39,19 @@ async def apply_memory_events(
         if isinstance(ev, MemoryEvent):
             norm_events.append(ev)
         else:
-            norm_events.append(MemoryEvent(**ev))
+            try:
+                norm_events.append(MemoryEvent(**ev))
+            except Exception as exc:
+                logger.warning(f"Skipping invalid memory event: {exc}")
+
+    for ev in norm_events:
+        if ev.kind not in {
+            MEMORY_KIND_PAPER_SELECTION,
+            MEMORY_KIND_PAPER_FEEDBACK,
+            MEMORY_KIND_POST_STYLE_FEEDBACK,
+            MEMORY_KIND_COMPREHENSION_FEEDBACK,
+        }:
+            logger.warning(f"Unhandled memory event kind: {ev.kind}")
 
     # 1. Topic preferences: liked topics
     topic_dict = store.topic or {}

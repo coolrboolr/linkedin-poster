@@ -33,14 +33,15 @@ A LangGraph-based agent that scans Google Trends, fetches relevant ArXiv papers,
     - `CONVO_AGENT_MODEL` (optional) overrides the base model just for the conversation agent.
     If `TAVILY_API_KEY` is missing, the conversation node falls back to the legacy single-question flow.
 
-3.  **Run the Agent (blocking-friendly)**:
+3.  **Run the Agent**:
     ```bash
-    langgraph dev --allow-blocking
+    langgraph dev
     ```
-    The `--allow-blocking` flag enables the interrupt-driven nodes (conversation + approvals) to pause and resume correctly in the dev server. For direct execution you can still run:
+    Interrupt-driven nodes (conversation + approvals) surface prompts in the Agent Inbox. For direct execution you can still run:
     ```bash
     python src/graph.py
     ```
+    Note: checkpointed memory is keyed by `thread_id`; keep it stable across messages for the same conversation.
 
 4.  **Use Agent Inbox for interrupts**:
     - Start the dev server as above, then open Agent Inbox (LangGraph Studio) in your browser.

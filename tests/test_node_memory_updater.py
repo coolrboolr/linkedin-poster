@@ -27,6 +27,8 @@ async def test_memory_updater_style_update(tmp_path):
         
         # Configure MemoryStore
         mock_store_instance = MockStore.return_value
+        mock_store_instance.load = AsyncMock(return_value=None)
+        mock_store_instance.save = AsyncMock(return_value=True)
         mock_store_instance.topic = {}
         mock_store_instance.comp = {}
         mock_store_instance.format = {"length": "long"}
@@ -88,6 +90,8 @@ async def test_memory_updater_comprehension_update():
         mock_settings.llm_model = "test-model"
 
         mock_store = MockStore.return_value
+        mock_store.load = AsyncMock(return_value=None) # Required for load
+        mock_store.save = AsyncMock(return_value=True) # Required for save
         mock_store.topic = {}
         mock_store.comp = {"level": "intermediate"}
         mock_store.format = {}
@@ -140,6 +144,8 @@ async def test_memory_updater_liked_topics_and_feedback_log():
         mock_settings.llm_model = "test-model"
 
         mock_store = MockStore.return_value
+        mock_store.load = AsyncMock(return_value=None)
+        mock_store.save = AsyncMock(return_value=True)
         mock_store.topic = {}
         mock_store.comp = {}
         mock_store.format = {}

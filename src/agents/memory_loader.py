@@ -13,7 +13,8 @@ async def load_memory(state: AppState) -> dict:
     """
     logger.info("--- NODE: Load Memory ---")
     store = MemoryStore()
-    
+    await store.load()
+     
     # Load all preferences into a dictionary
     memory_snapshot = store.get_all()
     

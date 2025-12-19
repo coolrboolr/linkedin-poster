@@ -37,6 +37,8 @@ def _parse_conversation_output(text: str) -> tuple[list[str], str]:
         if not stripped:
             continue
         bullet_stripped = stripped.lstrip("-•* ").strip()
+        # Also strip simple numeric list prefixes like "1)" or "1."
+        bullet_stripped = bullet_stripped.lstrip("0123456789").lstrip("). ").strip()
         if bullet_stripped.lower().startswith("angle"):
             angles.append(bullet_stripped)
         if bullet_stripped.lower().startswith("clarifying question:"):
@@ -50,6 +52,44 @@ def _parse_conversation_output(text: str) -> tuple[list[str], str]:
 
     return angles, question
 
+
+def _normalize_user_answer(raw: Any) -> Optional[Dict[str, Any]]:
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        return {"type": "response", "args": raw}
+    if isinstance(raw, dict):
+        if "type" in raw:
+            return raw
+        if "response" in raw:
+            return {"type": "response", "args": raw.get("response")}
+        if "message" in raw:
+            return {"type": "response", "args": raw.get("message")}
+        if "text" in raw:
+            return {"type": "response", "args": raw.get("text")}
+        if "args" in raw and isinstance(raw.get("args"), dict):
+            nested = raw["args"]
+            if "response" in nested:
+                return {"type": "response", "args": nested.get("response")}
+            if "message" in nested:
+                return {"type": "response", "args": nested.get("message")}
+            if "text" in nested:
+                return {"type": "response", "args": nested.get("text")}
+    return None
+
+
+def _find_unprocessed_user_message(state: AppState) -> str | None:
+    if not state.chat_history:
+        return None
+    last = state.chat_history[-1]
+    if last.get("role") != "user":
+        return None
+    message = (last.get("message") or "").strip()
+    if not message:
+        return None
+    if f"User: {message}" in state.clarification_history:
+        return None
+    return message
 
 def _should_use_tools() -> bool:
     tavily = getattr(settings, "tavily_api_key", None)
@@ -90,7 +130,7 @@ async def _invoke_with_tools(
             logger.warning(f"Unknown tool requested: {call.get('name')}")
             continue
         try:
-            result = tool.invoke(call.get("args", {}))
+            result = await tool.ainvoke(call.get("args", {}))
         except Exception as exc:  # pragma: no cover - defensive
             logger.error(f"Tool {tool.name} failed: {exc}")
             result = f"{tool.name} unavailable."
@@ -134,11 +174,29 @@ async def conversation_node(state: AppState) -> dict:
     ) -> dict:
         """Centralize state transitions based on user interaction."""
         answer_type = user_answer.get("type") if user_answer else None
+        def _extract_feedback(raw_args: Any) -> str:
+            if isinstance(raw_args, str):
+                return raw_args
+            if isinstance(raw_args, dict):
+                for key in ("response", "message", "text", "comment", "feedback", "instruction"):
+                    val = raw_args.get(key)
+                    if isinstance(val, str) and val.strip():
+                        return val
+                return json.dumps(raw_args) if raw_args else ""
+            return ""
 
         def append_user_message(message: str | None, source: str = "conversation"):
             nonlocal chat_history, clarification_history
             if not message:
                 return
+            if chat_history:
+                last_entry = chat_history[-1]
+                if (
+                    last_entry.get("role") == "user"
+                    and last_entry.get("message") == message
+                    and last_entry.get("source") == source
+                ):
+                    return
             chat_history = chat_history + [
                 {"role": "user", "source": source, "message": message}
             ]
@@ -146,7 +204,7 @@ async def conversation_node(state: AppState) -> dict:
 
         if answer_type == "response":
             raw_args = user_answer.get("args") if user_answer else None
-            feedback = raw_args if isinstance(raw_args, str) else (json.dumps(raw_args) if raw_args else "")
+            feedback = _extract_feedback(raw_args)
             append_user_message(feedback)
             if feedback:
                 memory_event = {
@@ -157,6 +215,7 @@ async def conversation_node(state: AppState) -> dict:
                 }
                 return {
                     "user_ready": False,
+                    "awaiting_user_response": False,
                     "clarification_history": clarification_history,
                     "chat_history": chat_history,
                     "memory_events": state.memory_events + [memory_event],
@@ -164,13 +223,14 @@ async def conversation_node(state: AppState) -> dict:
 
             return {
                 "user_ready": False,
+                "awaiting_user_response": False,
                 "clarification_history": clarification_history,
                 "chat_history": chat_history,
             }
 
         if answer_type == "accept":
             raw_args = user_answer.get("args") if user_answer else None
-            normalized = raw_args if isinstance(raw_args, str) else (json.dumps(raw_args) if raw_args else None)
+            normalized = _extract_feedback(raw_args) or None
             append_user_message(normalized)
             confirm_event = None
             if normalized:
@@ -182,6 +242,7 @@ async def conversation_node(state: AppState) -> dict:
                 }
             patch = {
                 "user_ready": True,
+                "awaiting_user_response": False,
                 "clarification_history": clarification_history,
                 "chat_history": chat_history,
                 "human_feedback": None,
@@ -194,6 +255,7 @@ async def conversation_node(state: AppState) -> dict:
             append_user_message("User chose to ignore/exit.")
             return {
                 "user_ready": False,
+                "awaiting_user_response": False,
                 "clarification_history": clarification_history,
                 "chat_history": chat_history,
                 "exit_requested": True,
@@ -202,6 +264,7 @@ async def conversation_node(state: AppState) -> dict:
         # No input or unknown type – keep conversation alive with updated history
         return {
             "user_ready": False,
+            "awaiting_user_response": False,
             "clarification_history": clarification_history,
             "chat_history": chat_history,
         }
@@ -212,7 +275,29 @@ async def conversation_node(state: AppState) -> dict:
 
     if not settings.openai_api_key:
         logger.error("OPENAI_API_KEY not set; cannot call LLM.")
-        return {"user_ready": True}
+        error_message = (
+            "Missing OPENAI_API_KEY. Set it in `.env` and restart the run to continue the research flow."
+        )
+        payload = {
+            "description": error_message,
+            "config": {
+                "allow_ignore": True,
+                "allow_respond": True,
+                "allow_edit": False,
+                "allow_accept": False,
+            },
+            "action_request": {
+                "action": "conversation configuration error",
+                "args": {"message": error_message},
+            },
+        }
+        interrupt(payload)
+        return {
+            "user_ready": False,
+            "exit_requested": True,
+            "chat_history": state.chat_history
+            + [{"role": "assistant", "source": "conversation", "message": error_message}],
+        }
 
     llm_model = settings.conversation_model or settings.llm_model
     llm = init_chat_model(llm_model, api_key=settings.openai_api_key)
@@ -224,9 +309,21 @@ async def conversation_node(state: AppState) -> dict:
     history_text = render_chat_history(state.chat_history)
     revision_summary = summarize_revisions(state.revision_history)
 
+    candidates_preview = []
+    for idx, candidate in enumerate(state.paper_candidates[:3]):
+        title = candidate.get("title", "Untitled")
+        summary = (candidate.get("summary") or "").replace("\n", " ").strip()
+        if summary:
+            summary = summary[:180] + ("..." if len(summary) > 180 else "")
+            candidates_preview.append(f"{idx}. {title} — {summary}")
+        else:
+            candidates_preview.append(f"{idx}. {title}")
+    candidates_text = "\n".join(candidates_preview) if candidates_preview else "None provided."
+
     inputs = {
         "paper_title": state.selected_paper['title'] if state.selected_paper else "",
         "paper_summary": state.selected_paper['summary'] if state.selected_paper else "",
+        "paper_candidates": candidates_text,
         "history": history_text,
         "revision_summary": revision_summary,
         "comprehension_level": state.memory.get("comprehension_preferences", {}).get("level", "intermediate"),
@@ -242,7 +339,29 @@ async def conversation_node(state: AppState) -> dict:
             assistant_content, angles, question = await _invoke_legacy(prompt_text, inputs)
     except Exception as e:
         logger.error(f"Error generating clarification question: {e}")
-        return {"user_ready": True}  # Fallback to proceed
+        error_message = (
+            "Error generating the research prompt. Please retry after checking logs or model configuration."
+        )
+        payload = {
+            "description": error_message,
+            "config": {
+                "allow_ignore": True,
+                "allow_respond": True,
+                "allow_edit": False,
+                "allow_accept": False,
+            },
+            "action_request": {
+                "action": "conversation runtime error",
+                "args": {"message": error_message},
+            },
+        }
+        interrupt(payload)
+        return {
+            "user_ready": False,
+            "exit_requested": True,
+            "chat_history": state.chat_history
+            + [{"role": "assistant", "source": "conversation", "message": error_message}],
+        }
 
     logger.info(f"Clarification question: {question}")
 
@@ -258,6 +377,9 @@ async def conversation_node(state: AppState) -> dict:
     if angles:
         description_lines.append("\nProposed angles:")
         description_lines.extend(angles)
+    if candidates_preview:
+        description_lines.append("\nCandidate papers:")
+        description_lines.extend(candidates_preview)
     description_lines.append("\n---\nSelecting 'Ignore' will cancel this session and end the run.")
     description = "\n".join(description_lines)
 
@@ -280,6 +402,18 @@ async def conversation_node(state: AppState) -> dict:
     # Let GraphInterrupt propagate to LangGraph; tests that mock interrupt to return still pass.
     raw = interrupt(payload)
     user_answer = raw[0] if isinstance(raw, (list, tuple)) and raw else raw
+    user_answer = _normalize_user_answer(user_answer)
+    if user_answer is None:
+        external_message = _find_unprocessed_user_message(state)
+        if external_message:
+            user_answer = {"type": "response", "args": external_message}
+        else:
+            return {
+                "user_ready": False,
+                "awaiting_user_response": True,
+                "clarification_history": new_clarification_history,
+                "chat_history": new_chat_history,
+            }
 
     updates = handle_user_answer(user_answer, new_chat_history, new_clarification_history)
     if angles:

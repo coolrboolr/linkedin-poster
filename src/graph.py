@@ -1,5 +1,6 @@
 from langgraph.graph import StateGraph, END, START
 from langgraph.checkpoint.memory import MemorySaver
+import sys
 from src.state import AppState
 from src.agents import (
     scan_trending_topics,
@@ -17,6 +18,17 @@ from src.services.logger import get_logger
 logger = get_logger(__name__)
 
 # Planning Router
+def _has_pending_user_message(state: AppState) -> bool:
+    if not state.chat_history:
+        return False
+    last = state.chat_history[-1]
+    if last.get("role") != "user":
+        return False
+    message = (last.get("message") or "").strip()
+    if not message:
+        return False
+    return f"User: {message}" not in state.clarification_history
+
 async def planning_router(state: AppState) -> dict:
     """
     Routes through the planning phase.
@@ -26,6 +38,7 @@ async def planning_router(state: AppState) -> dict:
       - arxiv_fetcher runs after that
 
     After those bootstrap steps, we are in a planning loop that can:
+      - run conversation_agent to confirm focus before ranking
       - rank papers
       - run conversation_agent until the user explicitly accepts the plan
       - request human paper review to confirm/switch the article
@@ -35,14 +48,24 @@ async def planning_router(state: AppState) -> dict:
         logger.info("Exit requested during planning; routing to END.")
         return {"next_step": "exit"}
 
+    if state.awaiting_user_response:
+        if _has_pending_user_message(state):
+            logger.info("Pending user response detected; resuming conversation.")
+            return {"next_step": "conversation_agent", "awaiting_user_response": False}
+        logger.info("Awaiting user response; routing to conversation_agent to capture resume.")
+        return {"next_step": "conversation_agent"}
+
     # 1. Bootstrap: enforce trend_scanner then arxiv_fetcher
     if not state.trending_keywords:
         next_step = "trend_scanner"
     elif not state.paper_candidates:
         next_step = "arxiv_fetcher"
     elif not state.selected_paper:
-        # We have topics and papers; pick a candidate first
-        next_step = "relevance_ranker"
+        # We have topics and papers; confirm focus with the user before ranking
+        if not state.user_ready:
+            next_step = "conversation_agent"
+        else:
+            next_step = "relevance_ranker"
     elif not state.user_ready:
         # Discuss with the user until they explicitly accept the plan
         next_step = "conversation_agent"
@@ -151,9 +174,10 @@ workflow.add_edge("human_approval", "execution_router")
 # Memory Updater -> End
 workflow.add_edge("memory_updater", END)
 
-# Compile with in-memory checkpointing for LangSmith visibility
-checkpointer = MemorySaver()
-graph = workflow.compile(checkpointer=checkpointer)
+# Compile with in-memory checkpointing unless LangGraph API is managing persistence.
+use_checkpointer = "langgraph_api" not in sys.modules
+checkpointer = MemorySaver() if use_checkpointer else None
+graph = workflow.compile(checkpointer=checkpointer) if checkpointer else workflow.compile()
 
 if __name__ == "__main__":
     import asyncio

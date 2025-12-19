@@ -40,6 +40,10 @@ class AppState(BaseModel):
         default_factory=list,
         description="Ordered list of revisions: {revision_number, instruction, draft_before, draft_after, source, timestamp}.",
     )
+    edit_requests: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Ordered list of all edit instructions: {instruction, draft_before, draft_after, source, type, revision_number, timestamp}.",
+    )
     post_history: List[Dict[str, Any]] = Field(
         default_factory=list,
         description="Chronological list of drafts: {origin, draft, revision_number, timestamp}.",
@@ -47,6 +51,12 @@ class AppState(BaseModel):
 
     # Hard-stop flag set by any agent when the user chooses to exit (e.g., ignore prompts)
     exit_requested: bool = Field(False, description="Signal to terminate the graph on the next router hop.")
+
+    # Pause flag for non-blocking conversation flows
+    awaiting_user_response: bool = Field(
+        False,
+        description="Set when a conversation prompt has been emitted and the graph should pause until user input arrives.",
+    )
     
     # Router hint
     next_step: Optional[str] = None # For router to signal next node

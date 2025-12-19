@@ -87,6 +87,9 @@ async def human_approval(state: AppState) -> dict:
             {"role": "user", "source": source, "message": message}
         ]
 
+    def append_edit_request(entry: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return state.edit_requests + [entry]
+
     # Keep interrupt type as the single driver for routing
     if response["type"] == "accept":
         raw_args = response.get("args")
@@ -131,6 +134,15 @@ async def human_approval(state: AppState) -> dict:
         ]
         feedback_text = instruction or edited_draft
         new_chat_history = append_user_chat(feedback_text, "human_approval")
+        edit_request_entry = {
+            "instruction": instruction or "",
+            "draft_before": state.post_draft,
+            "draft_after": edited_draft,
+            "source": "human_approval",
+            "type": "edit",
+            "revision_number": revision_number,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
         return {
             # User edited the draft; treat edits as guidance for regeneration
             "approved": False,
@@ -138,6 +150,7 @@ async def human_approval(state: AppState) -> dict:
             "post_draft": edited_draft,
             "human_feedback": feedback_text,
             "revision_history": new_revision_history,
+            "edit_requests": append_edit_request(edit_request_entry),
             "post_history": new_post_history,
             "chat_history": new_chat_history,
             "memory_events": state.memory_events + [
@@ -156,6 +169,19 @@ async def human_approval(state: AppState) -> dict:
         raw_args = response.get("args")
         feedback = raw_args if isinstance(raw_args, str) else (json.dumps(raw_args) if raw_args else None)
         new_chat_history = append_user_chat(feedback, "human_approval")
+        edit_requests = state.edit_requests
+        if feedback:
+            edit_requests = append_edit_request(
+                {
+                    "instruction": feedback,
+                    "draft_before": state.post_draft,
+                    "draft_after": None,
+                    "source": "human_approval",
+                    "type": "response",
+                    "revision_number": len(state.revision_history) + 1,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
         return {
             "approved": False,
             "revision_requested": False,
@@ -163,6 +189,7 @@ async def human_approval(state: AppState) -> dict:
             "return_to_conversation": True,
             "user_ready": False,
             "clarification_history": state.clarification_history + [f"User: {feedback}"] if feedback else state.clarification_history,
+            "edit_requests": edit_requests,
             "chat_history": new_chat_history,
             "memory_events": state.memory_events + (
                 [

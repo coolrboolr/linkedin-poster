@@ -24,17 +24,22 @@ async def test_full_graph_execution():
          patch('src.agents.memory_updater.MemoryStore') as MockStoreUpdater:
          
         # Setup Mocks
-        MockTrends.return_value.get_trending_topics.return_value = ["AI"]
-        MockArxiv.return_value.search_papers.return_value = [{"title": "Test Paper", "summary": "Summary"}]
+        MockTrends.return_value.get_trending_topics = AsyncMock(return_value=["AI"])
+        MockArxiv.return_value.search_papers = AsyncMock(return_value=[{"title": "Test Paper", "summary": "Summary"}])
 
         # Memory stores (keep everything in-memory)
         mock_loader_store = MockStoreLoader.return_value
+        # If load() is called, it should be awaitable
+        mock_loader_store.load = AsyncMock(return_value=None)
         mock_loader_store.get_all.return_value = {
             "topic_preferences": {"seeds": ["AI"], "avoid": []},
             "comprehension_preferences": {},
             "post_format_preferences": {},
         }
+        
         mock_updater_store = MockStoreUpdater.return_value
+        mock_updater_store.load = AsyncMock(return_value=None)
+        mock_updater_store.save = AsyncMock(return_value=True)
         mock_updater_store.topic = {}
         mock_updater_store.comp = {}
         mock_updater_store.format = {}
@@ -134,17 +139,20 @@ async def test_full_graph_revise_flow():
          patch('src.agents.memory_updater.MemoryStore') as MockStoreUpdater:
          
         # Setup Mocks
-        MockTrends.return_value.get_trending_topics.return_value = ["AI"]
-        MockArxiv.return_value.search_papers.return_value = [{"title": "Test Paper", "summary": "Summary"}]
+        MockTrends.return_value.get_trending_topics = AsyncMock(return_value=["AI"])
+        MockArxiv.return_value.search_papers = AsyncMock(return_value=[{"title": "Test Paper", "summary": "Summary"}])
         
         # Memory
         mock_loader_store = MockStoreLoader.return_value
+        mock_loader_store.load = AsyncMock(return_value=None)
         mock_loader_store.get_all.return_value = {
             "topic_preferences": {"seeds": ["AI"], "avoid": []},
             "comprehension_preferences": {},
             "post_format_preferences": {},
         }
         mock_updater_store = MockStoreUpdater.return_value
+        mock_updater_store.load = AsyncMock(return_value=None)
+        mock_updater_store.save = AsyncMock(return_value=True)
         mock_updater_store.topic = {}
         mock_updater_store.comp = {}
         mock_updater_store.format = {}
@@ -203,3 +211,14 @@ async def test_full_graph_revise_flow():
         assert final_state["post_draft"] == "Draft v2"
         assert final_state["revision_requested"] is False
         assert final_state["human_feedback"] == "yes"
+
+
+@pytest.mark.asyncio
+async def test_graph_exit_requested_short_circuits():
+    state = AppState(exit_requested=True)
+    config = {"configurable": {"thread_id": "exit-thread"}}
+
+    final_state = await graph.ainvoke(state, config=config)
+
+    assert final_state["next_step"] == "exit"
+    assert not final_state.get("trending_keywords")

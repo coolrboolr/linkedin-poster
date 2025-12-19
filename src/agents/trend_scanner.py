@@ -27,9 +27,10 @@ async def scan_trending_topics(state: AppState) -> dict:
     
     logger.info(f"Scanning trends for seeds: {search_seeds}")
     
-    # Run synchronous service call in executor
-    loop = asyncio.get_running_loop()
-    trends = await loop.run_in_executor(None, trends_service.get_trending_topics, search_seeds)
+    logger.info(f"Scanning trends for seeds: {search_seeds}")
+    
+    # Run async service call which now handles its own thread offloading if needed
+    trends = await trends_service.get_trending_topics(keywords=search_seeds)
     
     # Filter out avoided topics
     avoid_list = state.memory.get("topic_preferences", {}).get("avoid", [])

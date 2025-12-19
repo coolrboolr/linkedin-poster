@@ -9,7 +9,8 @@ from src.state import AppState
     [
         ({}, "trend_scanner"),
         ({"trending_keywords": ["ai"]}, "arxiv_fetcher"),
-        ({"trending_keywords": ["ai"], "paper_candidates": [{}]}, "relevance_ranker"),
+        ({"trending_keywords": ["ai"], "paper_candidates": [{}]}, "conversation_agent"),
+        ({"trending_keywords": ["ai"], "paper_candidates": [{}], "user_ready": True}, "relevance_ranker"),
         ({"trending_keywords": ["ai"], "paper_candidates": [{}], "selected_paper": {"title": "t"}}, "conversation_agent"),
         ({"trending_keywords": ["ai"], "paper_candidates": [{}], "selected_paper": {"title": "t"}, "user_ready": True}, "human_paper_review"),
         ({"trending_keywords": ["ai"], "paper_candidates": [{}], "selected_paper": {"title": "t"}, "user_ready": True, "paper_approved": True}, "execution_router"),

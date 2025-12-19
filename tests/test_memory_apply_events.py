@@ -95,3 +95,27 @@ async def test_apply_memory_events_style_and_comp_llm():
 
     assert store.format == {"length": "short"}
     assert store.comp == {"level": "beginner"}
+
+
+@pytest.mark.asyncio
+async def test_apply_memory_events_unknown_kind_logs(caplog):
+    store = MagicMock()
+    store.topic = {}
+    store.comp = {}
+    store.format = {}
+
+    events = [{"kind": "unknown_kind", "source": "test", "message": "n/a"}]
+
+    await apply_memory_events(
+        store=store,
+        events=events,
+        approved=False,
+        selected_paper=None,
+        human_feedback=None,
+        style_llm=None,
+        comp_llm=None,
+    )
+
+    assert store.topic == {}
+    assert store.comp == {}
+    assert store.format == {}

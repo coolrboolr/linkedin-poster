@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional
 
 from langchain_core.tools import tool
@@ -17,17 +18,17 @@ def _build_tavily_client() -> Optional[object]:
         return None
 
     try:
-        from langchain_community.tools.tavily_search import TavilySearchResults  # type: ignore
-    except ModuleNotFoundError:
-        logger.error("langchain_community not installed; search_web will return a placeholder.")
-        return None
+        # Preferred modern client
+        from langchain_tavily import TavilySearch  # type: ignore
 
-    return TavilySearchResults(
-        api_key=settings.tavily_api_key,
-        max_results=5,
-        search_depth="basic",
-        include_answer=True,
-    )
+        return TavilySearch(
+            api_key=settings.tavily_api_key,
+            search_depth="basic",
+            include_answer=True,
+        )
+    except ModuleNotFoundError:
+        logger.error("Tavily client not installed; search_web will return a placeholder.")
+        return None
 
 
 def _get_tavily_client() -> Optional[object]:
@@ -38,7 +39,7 @@ def _get_tavily_client() -> Optional[object]:
 
 
 @tool
-def search_web(query: str) -> str:
+async def search_web(query: str) -> str:
     """Search the web for recent context, examples, and definitions related to the query."""
     client = _get_tavily_client()
     if client is None:
@@ -46,14 +47,15 @@ def search_web(query: str) -> str:
 
     try:
         logger.info(f"[conversation tools] web search: {query}")
-        return client.run(query)
+        # Assuming client.run is blocking
+        return await asyncio.to_thread(client.run, query)
     except Exception as exc:
         logger.error(f"Tavily search failed: {exc}")
         return "Web search unavailable right now."
 
 
 @tool
-def expand_paper_context(title: str, summary: str) -> str:
+async def expand_paper_context(title: str, summary: str) -> str:
     """Expand a paper's context using ArXiv metadata and the provided summary."""
     if not title and not summary:
         return "No paper provided to expand."
@@ -61,7 +63,7 @@ def expand_paper_context(title: str, summary: str) -> str:
     service = ArxivService()
     try:
         query = title or summary[:80]
-        papers = service.search_papers(query=query, max_results=3)
+        papers = await service.search_papers(query=query, max_results=3)
     except Exception as exc:
         logger.error(f"ArXiv expansion failed: {exc}")
         papers = []

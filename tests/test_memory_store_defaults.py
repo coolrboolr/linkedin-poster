@@ -5,7 +5,7 @@ from unittest.mock import patch
 from src.memory import MemoryStore
 
 
-def test_memory_store_loads_default_files(tmp_path: Path):
+async def test_memory_store_loads_default_files(tmp_path: Path):
     # Seed temp memory directory with current default content
     (tmp_path / "topic_preferences.json").write_text(
         json.dumps(
@@ -34,6 +34,7 @@ def test_memory_store_loads_default_files(tmp_path: Path):
 
     with patch("src.memory.store.MEMORY_PATH", tmp_path):
         store = MemoryStore()
+        await store.load()
         data = store.get_all()
 
     assert data["topic_preferences"]["seeds"] == ["AI", "LLM", "Machine Learning"]
