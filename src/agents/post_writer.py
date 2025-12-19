@@ -79,6 +79,28 @@ async def write_post(state: AppState) -> dict:
 
     formatting_instructions = "\n".join(formatting_lines)
 
+    # Extract comprehension/style preferences and convert them into prompt-ready instructions
+    style_prefs = state.memory.get("comprehension_preferences", {})
+    style_lines = []
+    level = style_prefs.get("level")
+    if level:
+        style_lines.append(f"Comprehension level: {level}.")
+    tone = style_prefs.get("tone")
+    if tone:
+        style_lines.append(f"Tone: {tone}.")
+    depth = style_prefs.get("depth")
+    if depth:
+        style_lines.append(f"Depth: {depth}.")
+    if "examples" in style_prefs:
+        style_lines.append("Include examples." if style_prefs.get("examples") else "Avoid examples.")
+    math_vs_intuition = style_prefs.get("math_vs_intuition")
+    if math_vs_intuition:
+        style_lines.append(f"Balance math vs. intuition: {math_vs_intuition}.")
+    jargon = style_prefs.get("jargon")
+    if jargon:
+        style_lines.append(f"Jargon preference: {jargon}.")
+    style_instructions = "\n".join(style_lines) if style_lines else "No additional style preferences."
+
     previous_draft = state.post_draft or (state.post_history[-1]["draft"] if state.post_history else "")
     latest_instruction = state.human_feedback or ""
     revision_summary = summarize_revisions(state.revision_history)
@@ -99,7 +121,7 @@ async def write_post(state: AppState) -> dict:
     inputs = {
         "title": paper['title'],
         "summary": paper['summary'],
-        "style": state.memory.get("comprehension_preferences", {}),
+        "style": style_instructions,
         "format": formatting_instructions,
         "previous_draft": previous_draft,
         "latest_instruction": latest_instruction,

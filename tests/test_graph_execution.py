@@ -20,6 +20,7 @@ async def test_full_graph_execution():
          patch('src.agents.human_approval.interrupt', return_value={"type": "accept", "args": "Looks good"}) as mock_approval_interrupt, \
          patch('src.agents.conversation_agent.interrupt', return_value={"type": "accept", "args": None}) as mock_conv_interrupt, \
          patch('src.agents.human_paper_review.interrupt', return_value={"type": "accept", "args": None}) as mock_review_interrupt, \
+         patch('src.agents.publisher.LinkedInService') as MockLinkedInService, \
          patch('src.agents.memory_loader.MemoryStore') as MockStoreLoader, \
          patch('src.agents.memory_updater.MemoryStore') as MockStoreUpdater:
          
@@ -81,6 +82,7 @@ async def test_full_graph_execution():
         mock_writer_instance.invoke.return_value = mock_writer_response
         mock_writer_instance.return_value = mock_writer_response
         MockWriterModel.return_value = mock_writer_instance
+        MockLinkedInService.return_value.post_update = AsyncMock(return_value=True)
 
         state = AppState()
         
@@ -94,7 +96,7 @@ async def test_full_graph_execution():
         assert "memory" in final_state  # Verify memory loaded
         mem = final_state["memory"]
         assert "topic_preferences" in mem and "post_format_preferences" in mem
-        assert final_state["next_step"] == "memory_updater"  # Verify execution router worked
+        assert final_state["next_step"] == "publisher"  # Verify execution router worked
 
 @pytest.mark.asyncio
 async def test_execution_router_revise():
@@ -135,6 +137,7 @@ async def test_full_graph_revise_flow():
          patch('src.agents.human_approval.interrupt') as mock_approval_interrupt, \
          patch('src.agents.conversation_agent.interrupt', return_value={"type": "accept", "args": None}) as mock_conv_interrupt, \
          patch('src.agents.human_paper_review.interrupt', return_value={"type": "accept", "args": None}) as mock_review_interrupt, \
+         patch('src.agents.publisher.LinkedInService') as MockLinkedInService, \
          patch('src.agents.memory_loader.MemoryStore') as MockStoreLoader, \
          patch('src.agents.memory_updater.MemoryStore') as MockStoreUpdater:
          
@@ -194,6 +197,7 @@ async def test_full_graph_revise_flow():
         mock_writer_instance.ainvoke = AsyncMock(side_effect=[mock_writer_response_v1, mock_writer_response_v2])
         mock_writer_instance.side_effect = [mock_writer_response_v1, mock_writer_response_v2] # Handle __call__
         MockWriterModel.return_value = mock_writer_instance
+        MockLinkedInService.return_value.post_update = AsyncMock(return_value=True)
         
         # Approval interrupt - first request edit (revision), then accept
         mock_approval_interrupt.side_effect = [

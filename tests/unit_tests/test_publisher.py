@@ -1,8 +1,7 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch, AsyncMock
 from src.state import AppState
 from src.agents.publisher import publisher_node
-from src.config.settings import Settings
 
 @pytest.mark.asyncio
 async def test_publisher_node_success():
@@ -13,7 +12,7 @@ async def test_publisher_node_success():
     
     with patch("src.agents.publisher.LinkedInService") as MockService:
         mock_instance = MockService.return_value
-        mock_instance.post_update.return_value = True
+        mock_instance.post_update = AsyncMock(return_value=True)
         
         result = await publisher_node(state)
         

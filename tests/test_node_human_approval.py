@@ -16,6 +16,18 @@ async def test_human_approval_accept():
 
 
 @pytest.mark.asyncio
+async def test_human_approval_accept_with_edited_draft():
+    state = AppState(post_draft="Draft")
+    with patch('src.agents.human_approval.interrupt', return_value={"type": "accept", "args": {"draft": "Edited Draft"}}):
+        updates = await human_approval(state)
+
+    assert updates["approved"] is True
+    assert updates["revision_requested"] is False
+    assert updates["post_draft"] == "Edited Draft"
+    assert updates["post_history"][-1]["origin"] == "user_accept_edit"
+
+
+@pytest.mark.asyncio
 async def test_human_approval_edit_triggers_revision():
     state = AppState(post_draft="Draft")
     with patch('src.agents.human_approval.interrupt', return_value={"type": "edit", "args": {"draft": "Edited Draft"}}):

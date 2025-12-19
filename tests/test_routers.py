@@ -32,7 +32,7 @@ async def test_planning_router_branches(kwargs, expected):
         ({"revision_requested": True}, "post_writer"),
         ({"post_draft": None}, "post_writer"),
         ({"post_draft": "Draft", "approved": False}, "human_approval"),
-        ({"post_draft": "Draft", "approved": True}, "memory_updater"),
+        ({"post_draft": "Draft", "approved": True}, "publisher"),
     ],
 )
 async def test_execution_router_branches(kwargs, expected):

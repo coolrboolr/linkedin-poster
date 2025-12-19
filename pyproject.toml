@@ -12,6 +12,7 @@ dependencies = [
     "arxiv",
     "pytrends",
     "requests",
+    "httpx",
     "tenacity",
     "pydantic",
     "langsmith",

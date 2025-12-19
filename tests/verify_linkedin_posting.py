@@ -1,11 +1,10 @@
-import asyncio
 from src.services.linkedin_api import LinkedInService
 from src.config.settings import settings
 from src.services.logger import get_logger
 
 logger = get_logger(__name__)
 
-def test_linkedin_posting():
+async def test_linkedin_posting():
     print("Testing LinkedIn Posting Logic...")
     
     # Check if access token is present
@@ -22,7 +21,7 @@ def test_linkedin_posting():
 
     test_content = "This is a test post to verify the footer integration."
     
-    result = service.post_update(test_content)
+    result = await service.post_update(test_content)
     
     if result:
         print("SUCCESS: Post method returned True.")
@@ -30,4 +29,5 @@ def test_linkedin_posting():
         print("FAILURE: Post method returned False.")
 
 if __name__ == "__main__":
-    test_linkedin_posting()
+    import asyncio
+    asyncio.run(test_linkedin_posting())

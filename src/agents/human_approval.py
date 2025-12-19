@@ -93,20 +93,36 @@ async def human_approval(state: AppState) -> dict:
     # Keep interrupt type as the single driver for routing
     if response["type"] == "accept":
         raw_args = response.get("args")
+        edited_draft = None
+        if isinstance(raw_args, dict):
+            edited_draft = raw_args.get("draft")
         feedback_text = raw_args if isinstance(raw_args, str) else (json.dumps(raw_args) if raw_args else None)
         new_chat_history = append_user_chat(feedback_text or "Approved as-is.", "human_approval")
+        post_draft = edited_draft or state.post_draft
+        post_history = state.post_history
+        if edited_draft and edited_draft != state.post_draft:
+            post_history = state.post_history + [
+                {
+                    "origin": "user_accept_edit",
+                    "draft": edited_draft,
+                    "revision_number": len(state.revision_history),
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            ]
         return {
             "approved": True,
             "revision_requested": False,
             "human_feedback": feedback_text,
             "chat_history": new_chat_history,
+            "post_draft": post_draft,
+            "post_history": post_history,
             "memory_events": state.memory_events + [
                 {
                     "kind": MEMORY_KIND_POST_STYLE_FEEDBACK,
                     "source": "human_approval",
                     "polarity": "positive",
                     "message": feedback_text,
-                    "draft": state.post_draft,
+                    "draft": post_draft,
                 }
             ],
         }

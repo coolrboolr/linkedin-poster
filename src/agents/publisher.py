@@ -30,7 +30,7 @@ async def publisher_node(state: AppState) -> dict:
         author_urn=settings.linkedin_author_urn or ""
     )
 
-    success = service.post_update(state.post_draft)
+    success = await service.post_update(state.post_draft)
     
     if success:
         logger.info("Content published successfully.")
