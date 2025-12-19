@@ -7,6 +7,7 @@ from .human_approval import human_approval
 from .human_paper_review import human_paper_review
 from .memory_updater import update_memory
 from .memory_loader import load_memory
+from .publisher import publisher_node
 
 __all__ = [
     "scan_trending_topics",
@@ -18,4 +19,5 @@ __all__ = [
     "human_paper_review",
     "update_memory",
     "load_memory",
+    "publisher_node",
 ]

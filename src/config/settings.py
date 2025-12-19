@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     langsmith_api_key: Optional[str] = None
     linkedin_client_id: Optional[str] = None
     linkedin_client_secret: Optional[str] = None
+    linkedin_access_token: Optional[str] = None
+    linkedin_author_urn: Optional[str] = None
     llm_model: str = "openai:gpt-4o"
     conversation_model: Optional[str] = Field(
         default=None,

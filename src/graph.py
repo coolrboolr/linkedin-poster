@@ -12,6 +12,7 @@ from src.agents import (
     update_memory,
     load_memory,
     human_paper_review,
+    publisher_node,
 )
 from src.services.logger import get_logger
 
@@ -100,7 +101,8 @@ async def execution_router(state: AppState) -> dict:
         # Draft exists; seek approval or further feedback
         next_step = "human_approval"
     else:
-        next_step = "memory_updater"
+        # Approved -> Publish -> Memory
+        next_step = "publisher"
 
     logger.info(f"Execution router decided: {next_step}")
     return {"next_step": next_step, "return_to_conversation": False}
@@ -125,6 +127,7 @@ workflow.add_node("conversation_agent", conversation_node)
 
 workflow.add_node("post_writer", write_post)
 workflow.add_node("human_approval", human_approval)
+workflow.add_node("publisher", publisher_node)
 workflow.add_node("memory_updater", update_memory)
 
 # Edges
@@ -161,6 +164,7 @@ workflow.add_conditional_edges(
     {
         "post_writer": "post_writer",
         "human_approval": "human_approval",
+        "publisher": "publisher",
         "memory_updater": "memory_updater",
         "planning_router": "planning_router",
         "exit": END,
@@ -170,6 +174,7 @@ workflow.add_conditional_edges(
 # Execution Nodes -> Execution Router
 workflow.add_edge("post_writer", "execution_router")
 workflow.add_edge("human_approval", "execution_router")
+workflow.add_edge("publisher", "memory_updater")
 
 # Memory Updater -> End
 workflow.add_edge("memory_updater", END)
