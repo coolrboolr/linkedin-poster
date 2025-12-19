@@ -165,7 +165,7 @@ async def human_approval(state: AppState) -> dict:
         }
 
     if response["type"] == "response":
-        # User wants more discussion; route back to conversation
+        # User is requesting changes via feedback instructions; route to post_writer
         raw_args = response.get("args")
         feedback = raw_args if isinstance(raw_args, str) else (json.dumps(raw_args) if raw_args else None)
         new_chat_history = append_user_chat(feedback, "human_approval")
@@ -184,11 +184,9 @@ async def human_approval(state: AppState) -> dict:
             )
         return {
             "approved": False,
-            "revision_requested": False,
+            "revision_requested": True,
             "human_feedback": feedback,
-            "return_to_conversation": True,
-            "user_ready": False,
-            "clarification_history": state.clarification_history + [f"User: {feedback}"] if feedback else state.clarification_history,
+            "return_to_conversation": False,
             "edit_requests": edit_requests,
             "chat_history": new_chat_history,
             "memory_events": state.memory_events + (

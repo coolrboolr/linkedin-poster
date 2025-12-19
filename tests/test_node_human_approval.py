@@ -28,14 +28,13 @@ async def test_human_approval_edit_triggers_revision():
 
 
 @pytest.mark.asyncio
-async def test_human_approval_response_returns_to_conversation():
+async def test_human_approval_response_triggers_revision():
     state = AppState(post_draft="Draft", clarification_history=[])
     with patch('src.agents.human_approval.interrupt', return_value={"type": "response", "args": "Please tweak tone"}):
         updates = await human_approval(state)
 
-    assert updates["return_to_conversation"] is True
-    assert updates["user_ready"] is False
-    assert "Please tweak tone" in updates["clarification_history"][-1]
+    assert updates["return_to_conversation"] is False
+    assert updates["revision_requested"] is True
     assert updates["edit_requests"][-1]["instruction"] == "Please tweak tone"
 
 

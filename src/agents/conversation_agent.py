@@ -174,6 +174,7 @@ async def conversation_node(state: AppState) -> dict:
     ) -> dict:
         """Centralize state transitions based on user interaction."""
         answer_type = user_answer.get("type") if user_answer else None
+        logger.info(f"Conversation Agent received answer type: {answer_type}")
         def _extract_feedback(raw_args: Any) -> str:
             if isinstance(raw_args, str):
                 return raw_args
